@@ -127,7 +127,7 @@ export class DaemonBasedTaskHasher implements TaskHasher {
 }
 
 export class InProcessTaskHasher implements TaskHasher {
-  static version = '3.0';
+  static version = '3.1';
   private taskHasher: TaskHasherImpl;
 
   private useNativeTaskHasher = process.env.NX_NATIVE_TASK_HASHER !== 'false';

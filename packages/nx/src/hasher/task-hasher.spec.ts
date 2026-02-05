@@ -1744,6 +1744,150 @@ describe('TaskHasher', () => {
       expect(hash).toMatchSnapshot();
     });
 
+    it('should use child task hash instead of reading output files when hash is available', async () => {
+      const hasher = new InProcessTaskHasher(
+        {
+          parent: [
+            { file: 'libs/parent/filea.ts', hash: 'a.hash' },
+            { file: 'libs/parent/filea.spec.ts', hash: 'a.spec.hash' },
+          ],
+          child: [
+            { file: 'libs/child/fileb.ts', hash: 'b.hash' },
+            { file: 'libs/child/fileb.spec.ts', hash: 'b.spec.hash' },
+          ],
+        },
+        allWorkspaceFiles,
+        {
+          nodes: {
+            parent: {
+              name: 'parent',
+              type: 'lib',
+              data: {
+                root: 'libs/parent',
+                targets: {
+                  build: {
+                    dependsOn: ['^build'],
+                    inputs: ['prod', 'deps'],
+                    executor: 'nx:run-commands',
+                    outputs: ['{workspaceRoot}/dist/{projectRoot}'],
+                  },
+                },
+              },
+            },
+            child: {
+              name: 'child',
+              type: 'lib',
+              data: {
+                root: 'libs/child',
+                targets: {
+                  build: {
+                    dependsOn: [],
+                    inputs: ['prod'],
+                    executor: 'nx:run-commands',
+                    outputs: ['{workspaceRoot}/dist/{projectRoot}'],
+                  },
+                },
+              },
+            },
+          },
+          externalNodes: {},
+          dependencies: {
+            parent: [{ source: 'parent', target: 'child', type: 'static' }],
+          },
+        },
+        {
+          namedInputs: {
+            prod: ['!{projectRoot}/**/*.spec.ts'],
+            deps: [
+              { dependentTasksOutputFiles: '**/*.d.ts', transitive: false },
+            ],
+          },
+          targetDefaults: {
+            build: {
+              dependsOn: ['^build'],
+              inputs: ['prod', 'deps'],
+              executor: 'nx:run-commands',
+              options: {
+                outputPath: 'dist/libs/{projectRoot}',
+              },
+              outputs: ['{options.outputPath}'],
+            },
+          },
+        } as any,
+        null,
+        {}
+      );
+
+      // No output files created on disk - child task has a pre-computed hash
+      const hash = await hasher.hashTask(
+        {
+          target: { project: 'parent', target: 'build' },
+          id: 'parent-build',
+          overrides: { prop: 'prop-value' },
+          outputs: [],
+        },
+        {
+          roots: ['child-build'],
+          tasks: {
+            'parent-build': {
+              id: 'parent-build',
+              target: { project: 'parent', target: 'build' },
+              overrides: {},
+              outputs: ['dist/libs/libs/parent'],
+            },
+            'child-build': {
+              id: 'child-build',
+              target: { project: 'child', target: 'build' },
+              overrides: {},
+              outputs: ['dist/libs/libs/child'],
+              hash: 'child-build-hash-123',
+            },
+          },
+          dependencies: {
+            'parent-build': ['child-build'],
+          },
+        },
+        {}
+      );
+
+      expect(hash).toMatchSnapshot();
+
+      // Verify that a different child hash produces a different parent hash
+      const hash2 = await hasher.hashTask(
+        {
+          target: { project: 'parent', target: 'build' },
+          id: 'parent-build',
+          overrides: { prop: 'prop-value' },
+          outputs: [],
+        },
+        {
+          roots: ['child-build'],
+          tasks: {
+            'parent-build': {
+              id: 'parent-build',
+              target: { project: 'parent', target: 'build' },
+              overrides: {},
+              outputs: ['dist/libs/libs/parent'],
+            },
+            'child-build': {
+              id: 'child-build',
+              target: { project: 'child', target: 'build' },
+              overrides: {},
+              outputs: ['dist/libs/libs/child'],
+              hash: 'child-build-hash-456',
+            },
+          },
+          dependencies: {
+            'parent-build': ['child-build'],
+          },
+        },
+        {}
+      );
+
+      expect(hash2).toMatchSnapshot();
+      expect(hash.value).not.toEqual(hash2.value);
+    });
+
     it('should work with dependent tasks with globs as outputs', async () => {
       const hasher = new InProcessTaskHasher(
         {

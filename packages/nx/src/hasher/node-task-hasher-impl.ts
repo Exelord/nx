@@ -269,34 +269,48 @@ export class NodeTaskHasherImpl implements TaskHasherImpl {
     const partialHashes: PartialHash[] = [];
     for (const d of taskGraph.dependencies[task.id]) {
       const childTask = taskGraph.tasks[d];
-      const outputs = getOutputsForTargetAndConfiguration(
-        childTask.target,
-        childTask.overrides,
-        this.projectGraph.nodes[childTask.target.project]
-      );
-      const { getFilesForOutputs } =
-        require('../native') as typeof import('../native');
-      const outputFiles = getFilesForOutputs(workspaceRoot, outputs);
-      const filteredFiles = outputFiles.filter(
-        (p) =>
-          p === dependentTasksOutputFiles ||
-          minimatch(p, dependentTasksOutputFiles, { dot: true })
-      );
-      const hashDetails = {};
-      const hashes: string[] = [];
-      for (const [file, hash] of this.hashFiles(
-        filteredFiles.map((p) => join(workspaceRoot, p))
-      )) {
-        hashes.push(hash);
+
+      if (childTask.hash) {
+        // Use the child task's hash as a proxy for its output files.
+        // The cache contract guarantees: same hash -> same outputs,
+        // so we can avoid reading and re-hashing output files from disk.
+        const hash = hashArray([childTask.hash, dependentTasksOutputFiles]);
+        partialHashes.push({
+          value: hash,
+          details: {
+            [`${dependentTasksOutputFiles}:${d}`]: hash,
+          },
+        });
+      } else {
+        const outputs = getOutputsForTargetAndConfiguration(
+          childTask.target,
+          childTask.overrides,
+          this.projectGraph.nodes[childTask.target.project]
+        );
+        const { getFilesForOutputs } =
+          require('../native') as typeof import('../native');
+        const outputFiles = getFilesForOutputs(workspaceRoot, outputs);
+        const filteredFiles = outputFiles.filter(
+          (p) =>
+            p === dependentTasksOutputFiles ||
+            minimatch(p, dependentTasksOutputFiles, { dot: true })
+        );
+        const hashes: string[] = [];
+        for (const [file, hash] of this.hashFiles(
+          filteredFiles.map((p) => join(workspaceRoot, p))
+        )) {
+          hashes.push(hash);
+        }
+
+        let hash = hashArray(hashes);
+        partialHashes.push({
+          value: hash,
+          details: {
+            [`${dependentTasksOutputFiles}:${outputs.join(',')}`]: hash,
+          },
+        });
       }
 
-      let hash = hashArray(hashes);
-      partialHashes.push({
-        value: hash,
-        details: {
-          [`${dependentTasksOutputFiles}:${outputs.join(',')}`]: hash,
-        },
-      });
       if (transitive) {
         partialHashes.push(
           ...(await this.hashDepOuputs(

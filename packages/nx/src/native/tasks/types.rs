@@ -13,6 +13,7 @@ pub struct Task {
     pub target: TaskTarget,
     pub outputs: Vec<String>,
     pub project_root: Option<String>,
+    pub hash: Option<String>,
 }
 
 #[napi(object)]
@@ -39,6 +40,9 @@ pub enum HashInstruction {
     ProjectConfiguration(String),
     TsConfiguration(String),
     TaskOutput(String, Vec<String>),
+    /// Uses a dependent task's pre-computed hash as a proxy for its output files.
+    /// (glob_pattern, task_hash) - avoids reading output files from disk.
+    TaskHash(String, String),
     External(String),
     AllExternalDependencies,
 }
@@ -79,6 +83,9 @@ impl fmt::Display for HashInstruction {
                 HashInstruction::TaskOutput(task_output, dep_outputs) => {
                     let dep_outputs = dep_outputs.join(",");
                     format!("{task_output}:{dep_outputs}")
+                }
+                HashInstruction::TaskHash(glob, task_hash) => {
+                    format!("{glob}:{task_hash}")
                 }
                 HashInstruction::External(external) => external.to_string(),
                 HashInstruction::ProjectConfiguration(project_name) => {

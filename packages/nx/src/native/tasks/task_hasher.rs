@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::native::{
-    hasher::hash,
+    hasher::{hash, hash_array},
     project_graph::{types::ProjectGraph, utils::create_project_root_mappings},
     tasks::types::HashInstruction,
     types::NapiDashMap,
@@ -241,6 +241,13 @@ impl TaskHasher {
                 let hashed_task_output = hash_task_output(&self.workspace_root, glob, outputs)?;
                 trace!(parent: &span, "hash_task_output: {:?}", now.elapsed());
                 hashed_task_output
+            }
+            HashInstruction::TaskHash(glob, task_hash) => {
+                // Use the child task's pre-computed hash combined with the glob pattern.
+                // This avoids reading output files from disk entirely.
+                let combined = hash_array(vec![task_hash.clone(), glob.clone()]);
+                trace!(parent: &span, "hash_task_hash: {:?}", now.elapsed());
+                combined
             }
             HashInstruction::External(external) => {
                 let hashed_external = hash_external(
