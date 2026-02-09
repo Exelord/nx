@@ -1,6 +1,6 @@
 use crate::native::logger::enable_logger;
 use crate::native::tasks::{
-    dep_outputs::get_dep_output,
+    dep_outputs::{get_dep_hashes, get_dep_output},
     types::{CwdMode, HashInstruction, TaskGraph},
 };
 use crate::native::types::{Input, NxJson};
@@ -270,12 +270,15 @@ impl HashPlanner {
 
         let deps_outputs =
             self.gather_dependency_outputs(task, task_graph, &inputs.deps_outputs)?;
+        let deps_hashes =
+            self.gather_dependency_hashes(task, task_graph, &inputs.deps_hashes)?;
         let projects = self.gather_project_inputs(&inputs.project_inputs)?;
 
         Ok(self_inputs
             .into_iter()
             .chain(deps_inputs)
             .chain(deps_outputs)
+            .chain(deps_hashes)
             .chain(projects)
             .collect())
     }
@@ -434,6 +437,28 @@ impl HashPlanner {
                 dependent_tasks_output_files,
                 *transitive,
             )?);
+        }
+
+        Ok(result)
+    }
+
+    fn gather_dependency_hashes(
+        &self,
+        task: &Task,
+        task_graph: &TaskGraph,
+        deps_hashes: &[Input],
+    ) -> anyhow::Result<Vec<HashInstruction>> {
+        if deps_hashes.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut result: Vec<HashInstruction> = vec![];
+
+        for dep in deps_hashes {
+            let Input::DependentTasks { targets } = dep else {
+                continue;
+            };
+            result.extend(get_dep_hashes(task, task_graph, targets)?);
         }
 
         Ok(result)

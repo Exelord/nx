@@ -661,6 +661,29 @@
             },
             "required": ["dependentTasksOutputFiles"],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "dependentTasks": {
+                "oneOf": [
+                  {
+                    "type": "boolean",
+                    "const": true,
+                    "description": "Include the task hashes of all dependency tasks defined in dependsOn."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Include the task hashes of specific dependency targets. Use '^target' for dependency project targets and 'target' for same-project targets."
+                  }
+                ]
+              }
+            },
+            "required": ["dependentTasks"],
+            "additionalProperties": false
           }
         ]
       }

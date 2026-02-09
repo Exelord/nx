@@ -416,7 +416,7 @@ impl TaskHasher {
                 )
             }
             HashInstruction::TaskHash(task_id, task_hash) => {
-                let combined = hash_array(vec![task_hash.clone(), task_id.clone()]);
+                let combined = hash_array(vec![Some(task_hash.clone()), Some(task_id.clone())]);
                 trace!(parent: &span, "hash_task_hash: {:?}", now.elapsed());
                 (combined, HashInputsBuilder::default())
             }

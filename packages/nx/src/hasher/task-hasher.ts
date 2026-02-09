@@ -317,7 +317,10 @@ function splitInputsIntoSelfAndDependencies(
         selfInputs.push(d);
       }
     } else {
-      if (
+      if ('dependentTasks' in d) {
+        // { dependentTasks: true | string[] } — task hash dependencies, pass through to Rust
+        selfInputs.push(d);
+      } else if (
         ('dependencies' in d && d.dependencies) ||
         // Todo(@AgentEnder): Remove check in v17
         ('projects' in d &&

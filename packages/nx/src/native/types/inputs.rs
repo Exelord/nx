@@ -39,6 +39,11 @@ pub struct WorkingDirectoryInput {
     pub working_directory: String,
 }
 
+#[napi(object)]
+pub struct DependentTasksInput {
+    pub dependent_tasks: Either<bool, Vec<String>>,
+}
+
 pub(crate) type JsInputs = Either8<
     InputsInput,
     String,
@@ -47,7 +52,7 @@ pub(crate) type JsInputs = Either8<
     EnvironmentInput,
     ExternalDependenciesInput,
     DepsOutputsInput,
-    WorkingDirectoryInput,
+    Either<WorkingDirectoryInput, DependentTasksInput>,
 >;
 
 impl<'a> From<&'a JsInputs> for Input<'a> {
@@ -89,8 +94,17 @@ impl<'a> From<&'a JsInputs> for Input<'a> {
                 transitive: deps_outputs.transitive.unwrap_or(false),
                 dependent_tasks_output_files: &deps_outputs.dependent_tasks_output_files,
             },
-            Either8::H(working_directory) => {
-                Input::WorkingDirectory(&working_directory.working_directory)
+            Either8::H(either) => match either {
+                Either::A(working_directory) => {
+                    Input::WorkingDirectory(&working_directory.working_directory)
+                }
+                Either::B(dependent_tasks) => Input::DependentTasks {
+                    targets: match &dependent_tasks.dependent_tasks {
+                        Either::A(true) => vec![],
+                        Either::A(false) => vec![],
+                        Either::B(targets) => targets.clone(),
+                    },
+                },
             }
         }
     }
@@ -116,4 +130,9 @@ pub(crate) enum Input<'a> {
         input: &'a str,
     },
     WorkingDirectory(&'a str),
+    /// Depends on task hashes of dependency tasks.
+    /// targets: empty = all dependsOn tasks, non-empty = filter by target name (^ prefix for dep projects)
+    DependentTasks {
+        targets: Vec<String>,
+    },
 }

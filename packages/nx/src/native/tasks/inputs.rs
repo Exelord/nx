@@ -9,6 +9,7 @@ pub(super) struct SplitInputs<'a> {
     pub project_inputs: Vec<Input<'a>>,
     pub self_inputs: Vec<Input<'a>>,
     pub deps_outputs: Vec<Input<'a>>,
+    pub deps_hashes: Vec<Input<'a>>,
 }
 
 pub(super) fn get_inputs<'a>(
@@ -65,6 +66,7 @@ pub(super) fn get_inputs_for_dependency<'a>(
         deps_inputs,
         self_inputs,
         project_inputs: vec![],
+        deps_hashes: vec![],
     }))
 }
 
@@ -82,7 +84,7 @@ fn split_inputs_into_self_and_deps<'a>(
         ]
     });
 
-    let (deps_inputs, self_inputs, project_inputs) = inputs.into_iter().fold(
+    let (deps_inputs, self_inputs, project_inputs, deps_hashes) = inputs.into_iter().fold(
         (
             // deps_inputs
             Vec::new(),
@@ -90,12 +92,15 @@ fn split_inputs_into_self_and_deps<'a>(
             Vec::new(),
             // project_inputs
             Vec::new(),
+            // deps_hashes
+            Vec::new(),
         ),
         |mut acc, input| {
             match input {
                 Input::Inputs {
                     dependencies: true, ..
                 } => acc.0.push(input),
+                Input::DependentTasks { .. } => acc.3.push(input),
                 Input::Inputs {
                     dependencies: false,
                     ..
@@ -129,6 +134,7 @@ fn split_inputs_into_self_and_deps<'a>(
         project_inputs,
         self_inputs,
         deps_outputs,
+        deps_hashes,
     })
 }
 
@@ -176,7 +182,8 @@ pub(super) fn expand_single_project_inputs<'a>(
             Input::Projects { .. }
             | Input::Inputs {
                 dependencies: true, ..
-            } => {
+            }
+            | Input::DependentTasks { .. } => {
                 anyhow::bail!(
                     "namedInputs definitions can only refer to other namedInputs definitions within the same project."
                 );
